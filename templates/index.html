@@ -1,1 +1,690 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ArticleLens</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&family=Noto+Serif+SC:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0f0f11; --surface: #17171a; --border: #2a2a30;
+  --accent: #e8c547; --accent2: #5b8af0; --text: #e2e2e6; --muted: #7a7a85;
+  --success: #4caf82; --danger: #e05a5a; --warn: #e8943a; --card: #1c1c21;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font-family: 'IBM Plex Sans','Noto Serif SC',sans-serif; font-size: 14px; line-height: 1.7; }
 
+/* Header */
+header { border-bottom: 1px solid var(--border); padding: 14px 28px; display: flex; align-items: center; gap: 12px; position: sticky; top: 0; background: var(--bg); z-index: 100; }
+.logo { font-family: 'IBM Plex Mono',monospace; font-size: 13px; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; }
+.subtitle { color: var(--muted); font-size: 11px; font-family: 'IBM Plex Mono',monospace; }
+.model-pill { margin-left: auto; background: var(--surface); border: 1px solid var(--border); padding: 4px 12px; border-radius: 20px; font-size: 11px; color: var(--muted); font-family: 'IBM Plex Mono',monospace; }
+
+/* Layout */
+.layout { display: grid; grid-template-columns: 220px 1fr; gap: 0; min-height: calc(100vh - 53px); }
+@media(max-width:700px) { .layout { grid-template-columns: 1fr; } }
+
+/* Sidebar — Topic Manager */
+.sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 20px 14px; display: flex; flex-direction: column; gap: 10px; }
+.sidebar-title { font-family: 'IBM Plex Mono',monospace; font-size: 10px; color: var(--muted); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; }
+.topic-item { padding: 8px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; color: var(--muted); border: 1px solid transparent; transition: all .15s; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.topic-item:hover { background: var(--card); color: var(--text); }
+.topic-item.active { background: var(--card); color: var(--accent); border-color: var(--border); }
+.topic-item .del-btn { opacity: 0; font-size: 11px; color: var(--danger); cursor: pointer; padding: 0 4px; flex-shrink: 0; }
+.topic-item:hover .del-btn { opacity: 1; }
+.topic-count { font-size: 10px; font-family: 'IBM Plex Mono',monospace; color: var(--muted); }
+.new-topic-row { display: flex; gap: 6px; margin-top: 4px; }
+.new-topic-row input { flex: 1; background: var(--card); border: 1px solid var(--border); color: var(--text); padding: 7px 10px; border-radius: 6px; font-size: 12px; outline: none; }
+.new-topic-row input:focus { border-color: var(--accent2); }
+.new-topic-row button { background: var(--accent); color: #000; border: none; border-radius: 6px; padding: 7px 10px; font-size: 13px; cursor: pointer; font-weight: 700; }
+
+/* Main */
+.main { padding: 24px; display: flex; flex-direction: column; gap: 20px; }
+
+/* Card */
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+.card-title { font-family: 'IBM Plex Mono',monospace; font-size: 11px; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+.card-title::before { content:''; display:inline-block; width:6px; height:6px; background:var(--accent); border-radius:50%; }
+
+/* Config */
+.config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media(max-width:500px) { .config-grid { grid-template-columns:1fr; } }
+label { display: block; font-size: 11px; color: var(--muted); margin-bottom: 5px; font-family: 'IBM Plex Mono',monospace; letter-spacing: 1px; text-transform: uppercase; }
+input, select, textarea { width: 100%; background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 9px 13px; border-radius: 6px; font-size: 13px; outline: none; transition: border-color .2s; font-family: 'IBM Plex Sans',sans-serif; }
+input:focus, select:focus, textarea:focus { border-color: var(--accent2); }
+input[type="password"] { letter-spacing: 2px; }
+textarea { min-height: 110px; resize: vertical; }
+
+/* Tabs */
+.tab-bar { display: flex; gap: 4px; margin-bottom: 14px; background: var(--surface); padding: 4px; border-radius: 8px; border: 1px solid var(--border); }
+.tab { flex: 1; padding: 7px; text-align: center; font-size: 12px; font-family: 'IBM Plex Mono',monospace; color: var(--muted); cursor: pointer; border-radius: 5px; border: none; background: none; transition: all .2s; }
+.tab.active { background: var(--card); color: var(--accent); border: 1px solid var(--border); }
+.input-panel { display: none; }
+.input-panel.active { display: block; }
+
+/* Dropzone */
+.dropzone { border: 2px dashed var(--border); border-radius: 8px; padding: 28px; text-align: center; cursor: pointer; transition: all .2s; color: var(--muted); font-size: 13px; position: relative; }
+.dropzone:hover, .dropzone.drag { border-color: var(--accent2); color: var(--text); }
+.dropzone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+.dropzone .icon { font-size: 26px; margin-bottom: 8px; display: block; }
+.file-list { margin-top: 12px; text-align: left; }
+.file-chip { display: inline-flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 3px 10px; font-size: 11px; font-family: 'IBM Plex Mono',monospace; color: var(--accent); margin: 3px; }
+
+/* Progress */
+.progress-wrap { margin-top: 14px; display: none; }
+.progress-wrap.show { display: block; }
+.progress-label { font-family: 'IBM Plex Mono',monospace; font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+.progress-bar-bg { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; height: 8px; overflow: hidden; }
+.progress-bar-fill { height: 100%; background: var(--accent); border-radius: 20px; transition: width .4s ease; width: 0%; }
+.progress-items { margin-top: 10px; max-height: 120px; overflow-y: auto; }
+.progress-item { font-size: 12px; font-family: 'IBM Plex Mono',monospace; padding: 3px 0; display: flex; align-items: center; gap: 8px; }
+.progress-item .status { width: 14px; text-align: center; }
+
+/* Buttons */
+.btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 18px; border-radius: 6px; font-size: 13px; font-family: 'IBM Plex Mono',monospace; cursor: pointer; border: none; transition: all .2s; white-space: nowrap; }
+.btn-primary { background: var(--accent); color: #000; font-weight: 600; }
+.btn-primary:hover { opacity: .85; }
+.btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+.btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+.btn-secondary:hover { border-color: var(--accent2); }
+.btn-accent2 { background: var(--accent2); color: #fff; font-weight: 500; }
+.btn-accent2:hover { opacity: .85; }
+.btn-accent2:disabled { opacity: .4; cursor: not-allowed; }
+.btn-danger { background: transparent; color: var(--danger); border: 1px solid var(--danger); font-size: 11px; padding: 5px 10px; }
+.btn-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+
+/* Loading */
+.loading { display: none; align-items: center; gap: 10px; color: var(--muted); font-family: 'IBM Plex Mono',monospace; font-size: 12px; margin-top: 12px; }
+.loading.show { display: flex; }
+.spinner { width: 15px; height: 15px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Error */
+.error-msg { background: rgba(224,90,90,.1); border: 1px solid var(--danger); color: var(--danger); padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-top: 10px; display: none; }
+.error-msg.show { display: block; }
+
+/* Topic header */
+.topic-header { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.topic-name-display { font-size: 16px; font-weight: 600; color: var(--text); }
+.count-badge { background: var(--accent); color: #000; font-size: 11px; font-family: 'IBM Plex Mono',monospace; font-weight: 700; padding: 2px 8px; border-radius: 20px; }
+
+/* Results */
+.result-item { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 18px; margin-bottom: 14px; animation: fadeIn .3s ease; }
+@keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+.result-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; flex-wrap: wrap; gap: 8px; }
+.result-source { font-family: 'IBM Plex Mono',monospace; font-size: 12px; color: var(--accent2); word-break: break-all; }
+.result-meta { font-family: 'IBM Plex Mono',monospace; font-size: 11px; color: var(--muted); }
+.result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media(max-width:500px) { .result-grid { grid-template-columns:1fr; } }
+.result-field { background: var(--card); border: 1px solid var(--border); border-radius: 6px; padding: 11px; }
+.result-field.full { grid-column: 1 / -1; }
+.field-label { font-family: 'IBM Plex Mono',monospace; font-size: 10px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 5px; }
+.field-value { font-size: 13px; color: var(--text); }
+.badge { display: inline-block; padding: 2px 10px; border-radius: 20px; font-size: 12px; font-family: 'IBM Plex Mono',monospace; font-weight: 600; }
+.badge-高 { background: rgba(76,175,130,.15); color: var(--success); border: 1px solid var(--success); }
+.badge-中 { background: rgba(232,148,58,.15); color: var(--warn); border: 1px solid var(--warn); }
+.badge-低 { background: rgba(224,90,90,.15); color: var(--danger); border: 1px solid var(--danger); }
+ul.ev-list { list-style: none; padding: 0; }
+ul.ev-list li { padding: 3px 0 3px 14px; position: relative; font-size: 13px; }
+ul.ev-list li::before { content:'→'; position:absolute; left:0; color:var(--accent); font-size:11px; }
+
+/* Compare */
+.compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+@media(max-width:500px) { .compare-grid { grid-template-columns:1fr; } }
+.compare-conclusion { background: rgba(91,138,240,.08); border: 1px solid var(--accent2); border-radius: 8px; padding: 16px; margin-top: 10px; grid-column: 1 / -1; }
+.compare-conclusion .field-label { color: var(--accent2); }
+.compare-conclusion .field-value { font-size: 14px; line-height: 1.8; }
+
+.tip { font-size: 11px; color: var(--muted); font-family: 'IBM Plex Mono',monospace; margin-top: 7px; }
+.empty-state { text-align: center; padding: 40px; color: var(--muted); font-size: 13px; }
+.empty-state .big { font-size: 32px; margin-bottom: 10px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">ArticleLens</div>
+    <div class="subtitle">批量文章分析 · 话题管理 · 辅助决策</div>
+  </div>
+  <div class="model-pill" id="model-pill">— 未配置</div>
+</header>
+
+<div class="layout">
+
+  <!-- ── 左侧：话题管理 ── -->
+  <div class="sidebar">
+    <div class="sidebar-title">话题</div>
+    <div id="topic-list"></div>
+    <div class="new-topic-row" style="margin-top:auto; padding-top:12px;">
+      <input type="text" id="new-topic-input" placeholder="新建话题…" maxlength="20"
+             onkeydown="if(event.key==='Enter') addTopic()">
+      <button onclick="addTopic()">＋</button>
+    </div>
+  </div>
+
+  <!-- ── 右侧主区域 ── -->
+  <div class="main">
+
+    <!-- ① API配置 -->
+    <div class="card">
+      <div class="card-title">API 配置</div>
+      <div class="config-grid">
+        <div>
+          <label>AI 模型</label>
+          <select id="provider" onchange="updatePill()">
+            {% for key, cfg in api_configs.items() %}
+            <option value="{{ key }}">{{ cfg.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label>API Key</label>
+          <input type="password" id="api-key" placeholder="粘贴你的 API Key">
+        </div>
+      </div>
+      <div class="tip">⚠ API Key 仅在本次会话中使用，不会被保存</div>
+    </div>
+
+    <!-- ② 输入区 -->
+    <div class="card">
+      <div class="card-title">输入文章
+        <span style="color:var(--muted);font-size:10px;margin-left:4px;">当前话题：<span id="current-topic-label" style="color:var(--accent)">—</span></span>
+      </div>
+
+      <div class="tab-bar">
+        <button class="tab active" onclick="switchTab('file',this)">📄 上传文件（批量）</button>
+        <button class="tab" onclick="switchTab('url',this)">🔗 输入链接</button>
+        <button class="tab" onclick="switchTab('text',this)">✏️ 粘贴正文</button>
+      </div>
+
+      <!-- 文件上传 -->
+      <div class="input-panel active" id="panel-file">
+        <div class="dropzone" id="dropzone">
+          <input type="file" id="file-input" accept=".pdf,.docx,.doc,.txt" multiple
+                 onchange="onFilesSelected(this)">
+          <span class="icon">📂</span>
+          <div>点击选择文件，或拖拽到此处</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">支持 PDF · Word · TXT · 最多10个文件</div>
+        </div>
+        <div class="file-list" id="file-list"></div>
+
+        <!-- 进度条 -->
+        <div class="progress-wrap" id="progress-wrap">
+          <div class="progress-label">
+            处理进度：<span id="progress-text">0 / 0</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="progress-fill"></div>
+          </div>
+          <div class="progress-items" id="progress-items"></div>
+        </div>
+      </div>
+
+      <!-- URL -->
+      <div class="input-panel" id="panel-url">
+        <label>网页地址</label>
+        <input type="url" id="url-input" placeholder="https://example.com/article">
+        <div class="tip">微信文章建议使用「粘贴正文」方式</div>
+      </div>
+
+      <!-- 粘贴文本 -->
+      <div class="input-panel" id="panel-text">
+        <div style="margin-bottom:10px">
+          <label>来源标题（可选）</label>
+          <input type="text" id="source-name" placeholder="如：财新 · 2024-04 · AI监管">
+        </div>
+        <label>文章正文</label>
+        <textarea id="text-input" placeholder="粘贴微信文章或其他文字内容…"></textarea>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="handleAnalyze()" id="analyze-btn">⚡ 分析</button>
+      </div>
+      <div class="loading" id="loading-single"><div class="spinner"></div><span>正在分析…</span></div>
+      <div class="error-msg" id="error-single"></div>
+    </div>
+
+    <!-- ③ 结果区 -->
+    <div id="results-section" style="display:none">
+      <div class="topic-header">
+        <div class="topic-name-display" id="results-topic-name"></div>
+        <span class="count-badge" id="results-count">0</span>
+      </div>
+
+      <div id="results-list"></div>
+
+      <div class="btn-row">
+        <button class="btn btn-accent2" onclick="compareAll()" id="compare-btn" disabled>🔍 综合对比</button>
+        <button class="btn btn-secondary" onclick="exportAll()">💾 导出报告</button>
+        <button class="btn btn-danger" onclick="clearTopic()">清空本话题</button>
+      </div>
+      <div class="loading" id="loading-compare"><div class="spinner"></div><span>正在综合对比分析…</span></div>
+      <div class="error-msg" id="error-compare"></div>
+    </div>
+
+    <!-- ④ 对比结果 -->
+    <div id="comparison-section" style="display:none">
+      <div class="card">
+        <div class="card-title">综合对比分析</div>
+        <div class="compare-grid" id="compare-grid"></div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /layout -->
+
+<script>
+// ── 状态 ──────────────────────────────────
+// topics: { name: string, articles: [], comparison: null }[]
+let topics = JSON.parse(localStorage.getItem('al_topics') || '[]');
+let currentTopicIdx = parseInt(localStorage.getItem('al_current') || '0');
+let currentTab = 'file';
+let lastComparison = null;
+
+// 初始化：确保至少有一个话题
+if (topics.length === 0) {
+  topics = [{ name: '默认话题', articles: [], comparison: null }];
+  currentTopicIdx = 0;
+}
+
+function save() {
+  localStorage.setItem('al_topics', JSON.stringify(topics));
+  localStorage.setItem('al_current', currentTopicIdx);
+}
+
+function currentTopic() {
+  return topics[currentTopicIdx] || topics[0];
+}
+
+// ── 话题管理 ──────────────────────────────
+function renderTopics() {
+  const list = document.getElementById('topic-list');
+  list.innerHTML = '';
+  topics.forEach((t, i) => {
+    const div = document.createElement('div');
+    div.className = 'topic-item' + (i === currentTopicIdx ? ' active' : '');
+    div.innerHTML = `
+      <span onclick="switchTopic(${i})" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer"
+            title="${escHtml(t.name)}">${escHtml(t.name)}</span>
+      <span class="topic-count">${t.articles.length}</span>
+      ${topics.length > 1 ? `<span class="del-btn" onclick="deleteTopic(${i},event)">✕</span>` : ''}
+    `;
+    list.appendChild(div);
+  });
+  document.getElementById('current-topic-label').textContent = currentTopic().name;
+}
+
+function switchTopic(i) {
+  currentTopicIdx = i;
+  lastComparison = currentTopic().comparison;
+  save();
+  renderTopics();
+  renderResults();
+  if (lastComparison) renderComparison(lastComparison);
+  else document.getElementById('comparison-section').style.display = 'none';
+}
+
+function addTopic() {
+  const input = document.getElementById('new-topic-input');
+  const name = input.value.trim();
+  if (!name) return;
+  if (topics.find(t => t.name === name)) { input.value = ''; return; }
+  topics.push({ name, articles: [], comparison: null });
+  currentTopicIdx = topics.length - 1;
+  input.value = '';
+  save();
+  renderTopics();
+  renderResults();
+  document.getElementById('comparison-section').style.display = 'none';
+}
+
+function deleteTopic(i, e) {
+  e.stopPropagation();
+  if (!confirm(`删除话题「${topics[i].name}」及其所有分析结果？`)) return;
+  topics.splice(i, 1);
+  if (currentTopicIdx >= topics.length) currentTopicIdx = topics.length - 1;
+  save();
+  renderTopics();
+  renderResults();
+  document.getElementById('comparison-section').style.display = 'none';
+}
+
+// ── Tab ──────────────────────────────────
+function switchTab(tab, el) {
+  currentTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.input-panel').forEach(p => p.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('panel-' + tab).classList.add('active');
+}
+
+// ── 模型 Pill ─────────────────────────────
+function updatePill() {
+  const sel = document.getElementById('provider');
+  document.getElementById('model-pill').textContent = sel.options[sel.selectedIndex].text;
+}
+updatePill();
+
+// ── 文件选择 ─────────────────────────────
+let selectedFiles = [];
+function onFilesSelected(input) {
+  const files = Array.from(input.files).slice(0, 10);
+  selectedFiles = files;
+  renderFileList();
+}
+
+function renderFileList() {
+  const el = document.getElementById('file-list');
+  el.innerHTML = selectedFiles.map(f =>
+    `<span class="file-chip">📄 ${escHtml(f.name)}</span>`
+  ).join('');
+}
+
+// Drag & drop
+const dz = document.getElementById('dropzone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('drag');
+  const files = Array.from(e.dataTransfer.files).slice(0, 10);
+  selectedFiles = files;
+  renderFileList();
+});
+
+// ── 分析入口 ─────────────────────────────
+async function handleAnalyze() {
+  if (currentTab === 'file') {
+    await analyzeBatch();
+  } else {
+    await analyzeSingle();
+  }
+}
+
+// 单篇（URL / 粘贴文本）
+async function analyzeSingle() {
+  const apiKey = document.getElementById('api-key').value.trim();
+  const provider = document.getElementById('provider').value;
+  if (!apiKey) { showError('error-single', '请先填写 API Key'); return; }
+
+  const btn = document.getElementById('analyze-btn');
+  btn.disabled = true;
+  showLoading('loading-single', true);
+  hideError('error-single');
+
+  const fd = new FormData();
+  fd.append('api_key', apiKey);
+  fd.append('provider', provider);
+  fd.append('input_type', currentTab);
+
+  if (currentTab === 'url') {
+    const url = document.getElementById('url-input').value.trim();
+    if (!url) { showError('error-single','请输入URL'); btn.disabled=false; showLoading('loading-single',false); return; }
+    fd.append('url', url);
+  } else {
+    const text = document.getElementById('text-input').value.trim();
+    if (!text) { showError('error-single','请粘贴文章正文'); btn.disabled=false; showLoading('loading-single',false); return; }
+    fd.append('text', text);
+    fd.append('source_name', document.getElementById('source-name').value.trim());
+  }
+
+  try {
+    const resp = await fetch('/analyze', { method: 'POST', body: fd });
+    const data = await resp.json();
+    if (!resp.ok || !data.success) throw new Error(data.error || '未知错误');
+    currentTopic().articles.push(data.result);
+    currentTopic().comparison = null;
+    save();
+    renderTopics();
+    renderResults();
+    document.getElementById('url-input').value = '';
+    document.getElementById('text-input').value = '';
+    document.getElementById('source-name').value = '';
+    document.getElementById('comparison-section').style.display = 'none';
+  } catch(e) {
+    showError('error-single', e.message);
+  } finally {
+    btn.disabled = false;
+    showLoading('loading-single', false);
+  }
+}
+
+// 批量上传
+async function analyzeBatch() {
+  const apiKey = document.getElementById('api-key').value.trim();
+  const provider = document.getElementById('provider').value;
+  if (!apiKey) { showError('error-single','请先填写 API Key'); return; }
+  if (selectedFiles.length === 0) { showError('error-single','请先选择文件'); return; }
+
+  const btn = document.getElementById('analyze-btn');
+  btn.disabled = true;
+  hideError('error-single');
+
+  const total = selectedFiles.length;
+  let done = 0;
+  const progressWrap = document.getElementById('progress-wrap');
+  const progressFill = document.getElementById('progress-fill');
+  const progressText = document.getElementById('progress-text');
+  const progressItems = document.getElementById('progress-items');
+
+  progressWrap.classList.add('show');
+  progressItems.innerHTML = selectedFiles.map(f =>
+    `<div class="progress-item" id="pi-${escId(f.name)}">
+      <span class="status">⏳</span>
+      <span>${escHtml(f.name)}</span>
+    </div>`
+  ).join('');
+  progressText.textContent = `0 / ${total}`;
+  progressFill.style.width = '0%';
+
+  for (const file of selectedFiles) {
+    const itemEl = document.getElementById('pi-' + escId(file.name));
+    if (itemEl) itemEl.querySelector('.status').textContent = '⚙️';
+
+    const fd = new FormData();
+    fd.append('api_key', apiKey);
+    fd.append('provider', provider);
+    fd.append('file', file);
+
+    try {
+      const resp = await fetch('/analyze_file', { method: 'POST', body: fd });
+      const data = await resp.json();
+      if (!resp.ok || !data.success) throw new Error(data.error || '失败');
+      currentTopic().articles.push(data.result);
+      if (itemEl) itemEl.querySelector('.status').textContent = '✅';
+    } catch(e) {
+      if (itemEl) {
+        itemEl.querySelector('.status').textContent = '❌';
+        itemEl.innerHTML += `<span style="color:var(--danger);font-size:11px;margin-left:4px">${escHtml(e.message)}</span>`;
+      }
+    }
+
+    done++;
+    progressText.textContent = `${done} / ${total}`;
+    progressFill.style.width = `${Math.round(done/total*100)}%`;
+    currentTopic().comparison = null;
+    save();
+    renderTopics();
+    renderResults();
+    document.getElementById('comparison-section').style.display = 'none';
+  }
+
+  // 完成
+  selectedFiles = [];
+  document.getElementById('file-input').value = '';
+  renderFileList();
+  btn.disabled = false;
+  // 3秒后收起进度条
+  setTimeout(() => { progressWrap.classList.remove('show'); }, 3000);
+}
+
+// ── 渲染结果 ─────────────────────────────
+function renderResults() {
+  const articles = currentTopic().articles;
+  const section = document.getElementById('results-section');
+  const list = document.getElementById('results-list');
+  section.style.display = articles.length > 0 ? 'block' : 'none';
+  document.getElementById('results-count').textContent = articles.length;
+  document.getElementById('results-topic-name').textContent = currentTopic().name;
+  document.getElementById('compare-btn').disabled = articles.length < 2;
+
+  list.innerHTML = '';
+  articles.forEach((a, i) => {
+    const credClass = 'badge-' + (a.credibility || '中');
+    list.innerHTML += `
+      <div class="result-item">
+        <div class="result-header">
+          <div>
+            <div class="result-source">${escHtml(a.source)}</div>
+            <div class="result-meta">${a.timestamp} · ${a.provider}</div>
+          </div>
+          <button class="btn btn-danger" onclick="removeArticle(${i})">删除</button>
+        </div>
+        <div class="result-grid">
+          <div class="result-field full">
+            <div class="field-label">核心论点</div>
+            <div class="field-value">${escHtml(a.core_claim)}</div>
+          </div>
+          <div class="result-field">
+            <div class="field-label">主要证据</div>
+            <ul class="ev-list">${(a.evidence||[]).map(e=>`<li>${escHtml(e)}</li>`).join('')}</ul>
+          </div>
+          <div class="result-field">
+            <div class="field-label">作者立场</div>
+            <div class="field-value">${escHtml(a.author_intent)}</div>
+          </div>
+          <div class="result-field">
+            <div class="field-label">最大漏洞</div>
+            <div class="field-value">${escHtml(a.biggest_flaw)}</div>
+          </div>
+          <div class="result-field">
+            <div class="field-label">需要核实</div>
+            <div class="field-value">${(a.verify_these||[]).join('；')}</div>
+          </div>
+          <div class="result-field" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <div>
+              <div class="field-label">可信度</div>
+              <span class="badge ${credClass}">${a.credibility}</span>
+            </div>
+            <div style="flex:1">
+              <div class="field-label">理由</div>
+              <div class="field-value" style="font-size:12px">${escHtml(a.credibility_reason)}</div>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  });
+}
+
+function removeArticle(i) {
+  currentTopic().articles.splice(i, 1);
+  currentTopic().comparison = null;
+  save(); renderTopics(); renderResults();
+  document.getElementById('comparison-section').style.display = 'none';
+}
+
+function clearTopic() {
+  if (!confirm(`清空话题「${currentTopic().name}」的所有分析结果？`)) return;
+  currentTopic().articles = [];
+  currentTopic().comparison = null;
+  save(); renderTopics(); renderResults();
+  document.getElementById('comparison-section').style.display = 'none';
+}
+
+// ── 综合对比 ─────────────────────────────
+async function compareAll() {
+  const apiKey = document.getElementById('api-key').value.trim();
+  const provider = document.getElementById('provider').value;
+  if (!apiKey) { showError('error-compare','请填写 API Key'); return; }
+
+  const btn = document.getElementById('compare-btn');
+  btn.disabled = true;
+  showLoading('loading-compare', true);
+  hideError('error-compare');
+
+  try {
+    const resp = await fetch('/compare', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ api_key: apiKey, provider, summaries: currentTopic().articles })
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.success) throw new Error(data.error || '未知错误');
+    currentTopic().comparison = data.result;
+    lastComparison = data.result;
+    save();
+    renderComparison(data.result);
+  } catch(e) {
+    showError('error-compare', e.message);
+  } finally {
+    btn.disabled = false;
+    showLoading('loading-compare', false);
+  }
+}
+
+function renderComparison(c) {
+  const section = document.getElementById('comparison-section');
+  const grid = document.getElementById('compare-grid');
+  const credClass = 'badge-' + (c.confidence || '中');
+  const gaps = Array.isArray(c.information_gaps) ? c.information_gaps.join('；') : (c.information_gaps || '');
+  grid.innerHTML = `
+    <div class="result-field">
+      <div class="field-label">共识观点</div>
+      <div class="field-value">${escHtml(c.consensus)}</div>
+    </div>
+    <div class="result-field">
+      <div class="field-label">矛盾之处</div>
+      <div class="field-value">${escHtml(c.contradictions)}</div>
+    </div>
+    <div class="result-field">
+      <div class="field-label">最强证据链</div>
+      <div class="field-value">${escHtml(c.strongest_evidence)}</div>
+    </div>
+    <div class="result-field">
+      <div class="field-label">信息缺口</div>
+      <div class="field-value">${escHtml(gaps)}</div>
+    </div>
+    <div class="compare-conclusion">
+      <div class="field-label">综合结论</div>
+      <div class="field-value">${escHtml(c.conclusion)}</div>
+      <div style="margin-top:10px;display:flex;align-items:center;gap:10px">
+        <span class="badge ${credClass}">${c.confidence}</span>
+        <span style="font-size:12px;color:var(--muted)">${escHtml(c.confidence_reason)}</span>
+      </div>
+    </div>`;
+  section.style.display = 'block';
+  section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ── 导出 ─────────────────────────────────
+async function exportAll() {
+  const resp = await fetch('/export', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({
+      topic: currentTopic().name,
+      articles: currentTopic().articles,
+      comparison: currentTopic().comparison
+    })
+  });
+  const blob = await resp.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = ''; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Helpers ──────────────────────────────
+function showLoading(id, show) { document.getElementById(id).classList.toggle('show', show); }
+function showError(id, msg) { const el=document.getElementById(id); el.textContent='⚠ '+msg; el.classList.add('show'); }
+function hideError(id) { document.getElementById(id).classList.remove('show'); }
+function escHtml(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function escId(s) { return s.replace(/[^a-zA-Z0-9]/g,'_'); }
+
+// ── 初始化 ───────────────────────────────
+renderTopics();
+renderResults();
+if (currentTopic().comparison) renderComparison(currentTopic().comparison);
+</script>
+</body>
+</html>
