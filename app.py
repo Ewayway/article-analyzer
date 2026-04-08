@@ -3,44 +3,22 @@ import requests
 import json
 import os
 import io
+import re
 import datetime
-from urllib.parse import urlparse
 import PyPDF2
 import docx
 
 app = Flask(__name__)
-app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max
+app.config['MAX_CONTENT_LENGTH'] = 200 * 1024 * 1024  # 200MB max
 
-# ─────────────────────────────────────────
-#  API 配置（支持切换）
-# ─────────────────────────────────────────
 API_CONFIGS = {
-    "grok": {
-        "url": "https://api.x.ai/v1/chat/completions",
-        "model": "grok-3-latest",
-        "name": "Grok (xAI)"
-    },
-    "deepseek": {
-        "url": "https://api.deepseek.com/chat/completions",
-        "model": "deepseek-chat",
-        "name": "DeepSeek V3"
-    },
-    "qwen": {
-        "url": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
-        "model": "qwen-long",
-        "name": "Qwen-Long (阿里)"
-    },
-    "kimi": {
-        "url": "https://api.moonshot.cn/v1/chat/completions",
-        "model": "moonshot-v1-32k",
-        "name": "Kimi (月之暗面)"
-    }
+    "grok": {"url": "https://api.x.ai/v1/chat/completions", "model": "grok-3-latest", "name": "Grok (xAI)"},
+    "deepseek": {"url": "https://api.deepseek.com/chat/completions", "model": "deepseek-chat", "name": "DeepSeek V3"},
+    "qwen": {"url": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", "model": "qwen-long", "name": "Qwen-Long (阿里)"},
+    "kimi": {"url": "https://api.moonshot.cn/v1/chat/completions", "model": "moonshot-v1-32k", "name": "Kimi (月之暗面)"}
 }
 
-# ─────────────────────────────────────────
-#  分析提示词（中英文通用）
-# ─────────────────────────────────────────
-SINGLE_ARTICLE_PROMPT = """你是一个严格的分析助手，帮助用户独立判断文章内容，辅助个人决策。
+SINGLE_PROMPT = """你是一个严格的分析助手，帮助用户独立判断文章内容，辅助个人决策。
 
 请分析以下文章，输出格式严格按照下面的JSON结构，不得增减字段：
 
@@ -68,7 +46,7 @@ COMPARE_PROMPT = """你是一个帮助用户做决策的分析助手。
   "consensus": "这些文章相互印证的核心观点（1-2句话，若无则写'无明显共识'）",
   "contradictions": "相互矛盾的地方（1-2句话，若无则写'无明显矛盾'）",
   "strongest_evidence": "目前证据最强的观点是什么（1-2句话）",
-  "information_gaps": "还缺什么信息才能做出更可靠判断（1-2条）",
+  "information_gaps": ["信息缺口1", "信息缺口2（最多2条）"],
   "conclusion": "综合判断结论（2-3句话，直接给倾向性结论）",
   "confidence": "高/中/低",
   "confidence_reason": "置信度理由（1句话）"
@@ -81,57 +59,55 @@ COMPARE_PROMPT = """你是一个帮助用户做决策的分析助手。
 
 
 def call_api(api_key, provider, messages):
-    """调用指定的AI API"""
     config = API_CONFIGS.get(provider, API_CONFIGS["grok"])
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key}"
-    }
-    payload = {
-        "model": config["model"],
-        "messages": messages,
-        "max_tokens": 1000,
-        "temperature": 0.3
-    }
-    resp = requests.post(config["url"], headers=headers, json=payload, timeout=60)
+    resp = requests.post(
+        config["url"],
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+        json={"model": config["model"], "messages": messages, "max_tokens": 1000, "temperature": 0.3},
+        timeout=60
+    )
     resp.raise_for_status()
     return resp.json()["choices"][0]["message"]["content"]
 
 
-def extract_pdf_text(file_bytes):
-    """从PDF提取文字"""
+def parse_json(text):
+    text = text.strip()
+    if text.startswith("```"):
+        parts = text.split("```")
+        text = parts[1] if len(parts) > 1 else text
+        if text.startswith("json"):
+            text = text[4:]
+    return json.loads(text.strip())
+
+
+def extract_pdf(file_bytes):
     reader = PyPDF2.PdfReader(io.BytesIO(file_bytes))
-    text = ""
-    for page in reader.pages:
-        text += page.extract_text() or ""
-    return text.strip()
+    return "".join(page.extract_text() or "" for page in reader.pages).strip()
 
 
-def extract_docx_text(file_bytes):
-    """从Word文档提取文字"""
+def extract_docx(file_bytes):
     doc = docx.Document(io.BytesIO(file_bytes))
-    return "\n".join([para.text for para in doc.paragraphs]).strip()
+    return "\n".join(p.text for p in doc.paragraphs).strip()
 
 
-def fetch_url_content(url):
-    """抓取网页正文"""
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-    }
-    resp = requests.get(url, headers=headers, timeout=15)
+def fetch_url(url):
+    resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
     resp.raise_for_status()
-    # 简单提取：去掉HTML标签
-    import re
     text = re.sub(r'<script[^>]*>.*?</script>', '', resp.text, flags=re.DOTALL)
     text = re.sub(r'<style[^>]*>.*?</style>', '', text, flags=re.DOTALL)
     text = re.sub(r'<[^>]+>', ' ', text)
-    text = re.sub(r'\s+', ' ', text).strip()
-    return text[:8000]  # 限制长度
+    return re.sub(r'\s+', ' ', text).strip()[:8000]
 
 
-# ─────────────────────────────────────────
-#  路由
-# ─────────────────────────────────────────
+def do_analyze(content, source, api_key, provider):
+    content = content[:6000]
+    raw = call_api(api_key, provider, [{"role": "user", "content": SINGLE_PROMPT.format(content=content)}])
+    result = parse_json(raw)
+    result["source"] = source
+    result["timestamp"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+    result["provider"] = API_CONFIGS[provider]["name"]
+    return result
+
 
 @app.route("/")
 def index():
@@ -140,88 +116,81 @@ def index():
 
 @app.route("/analyze", methods=["POST"])
 def analyze():
-    """分析单篇文章"""
     api_key = request.form.get("api_key", "").strip()
     provider = request.form.get("provider", "grok")
-
     if not api_key:
         return jsonify({"error": "请填写API Key"}), 400
 
-    content = ""
-    source_name = ""
-
-    # 判断输入类型
     input_type = request.form.get("input_type", "text")
-
-    if input_type == "file":
-        file = request.files.get("file")
-        if not file:
-            return jsonify({"error": "未收到文件"}), 400
-        source_name = file.filename
-        file_bytes = file.read()
-        if file.filename.lower().endswith(".pdf"):
-            content = extract_pdf_text(file_bytes)
-        elif file.filename.lower().endswith((".docx", ".doc")):
-            content = extract_docx_text(file_bytes)
-        elif file.filename.lower().endswith(".txt"):
-            content = file_bytes.decode("utf-8", errors="ignore")
-        else:
-            return jsonify({"error": "支持格式：PDF、Word、TXT"}), 400
-
-    elif input_type == "url":
+    if input_type == "url":
         url = request.form.get("url", "").strip()
         if not url:
             return jsonify({"error": "请输入URL"}), 400
-        source_name = url
         try:
-            content = fetch_url_content(url)
+            content = fetch_url(url)
         except Exception as e:
-            return jsonify({"error": f"无法抓取网页：{str(e)}"}), 400
-
-    else:  # text
+            return jsonify({"error": f"无法抓取网页：{e}"}), 400
+        source = url
+    else:
         content = request.form.get("text", "").strip()
-        source_name = request.form.get("source_name", "手动粘贴").strip() or "手动粘贴"
+        source = request.form.get("source_name", "手动粘贴").strip() or "手动粘贴"
 
-    if not content or len(content) < 50:
-        return jsonify({"error": "文章内容太短或为空"}), 400
-
-    # 截断超长文章（节省token）
-    content = content[:6000]
-
+    if len(content) < 50:
+        return jsonify({"error": "内容太短或为空"}), 400
     try:
-        prompt = SINGLE_ARTICLE_PROMPT.format(content=content)
-        result_text = call_api(api_key, provider, [
-            {"role": "user", "content": prompt}
-        ])
-
-        # 解析JSON
-        result_text = result_text.strip()
-        if result_text.startswith("```"):
-            result_text = result_text.split("```")[1]
-            if result_text.startswith("json"):
-                result_text = result_text[4:]
-        result = json.loads(result_text)
-        result["source"] = source_name
-        result["timestamp"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
-        result["provider"] = API_CONFIGS[provider]["name"]
-        return jsonify({"success": True, "result": result})
-
+        return jsonify({"success": True, "result": do_analyze(content, source, api_key, provider)})
     except json.JSONDecodeError:
-        return jsonify({"error": "AI返回格式异常，请重试", "raw": result_text}), 500
+        return jsonify({"error": "AI返回格式异常，请重试"}), 500
     except requests.HTTPError as e:
-        return jsonify({"error": f"API调用失败：{e.response.status_code} - 请检查API Key"}), 500
+        return jsonify({"error": f"API调用失败：{e.response.status_code}"}), 500
     except Exception as e:
-        return jsonify({"error": f"错误：{str(e)}"}), 500
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/analyze_file", methods=["POST"])
+def analyze_file():
+    """批量上传时每个文件单独调用此接口"""
+    api_key = request.form.get("api_key", "").strip()
+    provider = request.form.get("provider", "grok")
+    if not api_key:
+        return jsonify({"error": "请填写API Key"}), 400
+
+    file = request.files.get("file")
+    if not file:
+        return jsonify({"error": "未收到文件"}), 400
+
+    fname = file.filename
+    raw = file.read()
+    try:
+        if fname.lower().endswith(".pdf"):
+            content = extract_pdf(raw)
+        elif fname.lower().endswith((".docx", ".doc")):
+            content = extract_docx(raw)
+        elif fname.lower().endswith(".txt"):
+            content = raw.decode("utf-8", errors="ignore")
+        else:
+            return jsonify({"error": f"{fname}：不支持的格式"}), 400
+    except Exception as e:
+        return jsonify({"error": f"{fname} 解析失败：{e}"}), 400
+
+    if len(content) < 50:
+        return jsonify({"error": f"{fname}：内容太短或无法提取文字"}), 400
+    try:
+        return jsonify({"success": True, "result": do_analyze(content, fname, api_key, provider)})
+    except json.JSONDecodeError:
+        return jsonify({"error": f"{fname}：AI返回格式异常"}), 500
+    except requests.HTTPError as e:
+        return jsonify({"error": f"{fname}：API失败 {e.response.status_code}"}), 500
+    except Exception as e:
+        return jsonify({"error": f"{fname}：{e}"}), 500
 
 
 @app.route("/compare", methods=["POST"])
 def compare():
-    """横向对比多篇摘要"""
     data = request.json
     api_key = data.get("api_key", "").strip()
     provider = data.get("provider", "grok")
     summaries = data.get("summaries", [])
-
     if not api_key:
         return jsonify({"error": "请填写API Key"}), 400
     if len(summaries) < 2:
@@ -237,59 +206,52 @@ def compare():
         summary_text += f"可信度：{s.get('credibility','')}\n"
 
     try:
-        prompt = COMPARE_PROMPT.format(summaries=summary_text)
-        result_text = call_api(api_key, provider, [
-            {"role": "user", "content": prompt}
-        ])
-        result_text = result_text.strip()
-        if result_text.startswith("```"):
-            result_text = result_text.split("```")[1]
-            if result_text.startswith("json"):
-                result_text = result_text[4:]
-        result = json.loads(result_text)
+        raw = call_api(api_key, provider, [{"role": "user", "content": COMPARE_PROMPT.format(summaries=summary_text)}])
+        result = parse_json(raw)
         result["timestamp"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
         return jsonify({"success": True, "result": result})
     except Exception as e:
-        return jsonify({"error": f"对比分析失败：{str(e)}"}), 500
+        return jsonify({"error": f"对比分析失败：{e}"}), 500
 
 
 @app.route("/export", methods=["POST"])
 def export():
-    """导出分析结果为文本"""
     data = request.json
+    topic = data.get("topic", "未命名话题")
     articles = data.get("articles", [])
     comparison = data.get("comparison", None)
 
-    output = f"文章分析报告\n生成时间：{datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
-    output += "=" * 60 + "\n\n"
+    lines = [f"文章分析报告", f"话题：{topic}",
+              f"生成时间：{datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}", "=" * 60, ""]
 
     for i, a in enumerate(articles, 1):
-        output += f"【文章 {i}】{a.get('source', '')}\n"
-        output += f"分析时间：{a.get('timestamp', '')}\n"
-        output += f"使用模型：{a.get('provider', '')}\n\n"
-        output += f"核心论点：{a.get('core_claim', '')}\n\n"
-        output += f"主要证据：\n"
-        for ev in a.get('evidence', []):
-            output += f"  • {ev}\n"
-        output += f"\n作者立场：{a.get('author_intent', '')}\n"
-        output += f"最大漏洞：{a.get('biggest_flaw', '')}\n"
-        output += f"需核实：{'; '.join(a.get('verify_these', []))}\n"
-        output += f"可信度：{a.get('credibility', '')} — {a.get('credibility_reason', '')}\n"
-        output += "\n" + "-" * 60 + "\n\n"
+        lines += [f"【文章 {i}】{a.get('source', '')}",
+                  f"时间：{a.get('timestamp','')}  模型：{a.get('provider','')}",
+                  "", f"核心论点：{a.get('core_claim','')}", "",
+                  "主要证据："] + [f"  • {e}" for e in a.get('evidence', [])]
+        lines += ["", f"作者立场：{a.get('author_intent','')}",
+                  f"最大漏洞：{a.get('biggest_flaw','')}",
+                  f"需核实：{'; '.join(a.get('verify_these',[]))}",
+                  f"可信度：{a.get('credibility','')} — {a.get('credibility_reason','')}",
+                  "", "-" * 60, ""]
 
     if comparison:
-        output += "【综合对比分析】\n\n"
-        output += f"共识观点：{comparison.get('consensus', '')}\n\n"
-        output += f"矛盾之处：{comparison.get('contradictions', '')}\n\n"
-        output += f"最强证据链：{comparison.get('strongest_evidence', '')}\n\n"
-        output += f"信息缺口：{'; '.join(comparison.get('information_gaps', []))}\n\n"
-        output += f"综合结论：{comparison.get('conclusion', '')}\n"
-        output += f"置信度：{comparison.get('confidence', '')} — {comparison.get('confidence_reason', '')}\n"
+        gaps = comparison.get('information_gaps', [])
+        gap_str = '; '.join(gaps) if isinstance(gaps, list) else str(gaps)
+        lines += ["【综合对比分析】", "",
+                  f"共识观点：{comparison.get('consensus','')}", "",
+                  f"矛盾之处：{comparison.get('contradictions','')}", "",
+                  f"最强证据链：{comparison.get('strongest_evidence','')}", "",
+                  f"信息缺口：{gap_str}", "",
+                  f"综合结论：{comparison.get('conclusion','')}",
+                  f"置信度：{comparison.get('confidence','')} — {comparison.get('confidence_reason','')}"]
 
+    output = "\n".join(lines)
     buf = io.BytesIO(output.encode("utf-8"))
     buf.seek(0)
-    filename = f"analysis_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.txt"
-    return send_file(buf, as_attachment=True, download_name=filename, mimetype="text/plain")
+    safe = re.sub(r'[^\w\u4e00-\u9fff]', '_', topic)[:20]
+    fname = f"{safe}_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.txt"
+    return send_file(buf, as_attachment=True, download_name=fname, mimetype="text/plain")
 
 
 if __name__ == "__main__":
