@@ -1,65 +1,94 @@
-# ArticleLens — 文章分析工具
+# ArticleLens 文章分析工具
 
-批量分析 PDF 论文、微信文章、网页，辅助个人决策判断。
+**🔗 在线体验：https://你的Render网址**
+
+打开即用，不需要安装任何软件（需自备 AI API Key）。
+
+---
+
+## 解决什么问题？
+
+用 AI 分析文章时，几乎所有人都遇到过这些痛点：
+
+- 粘贴几篇文章后对话窗口就满了
+- 每篇要单独粘贴、单独问，效率极低  
+- 不同话题的文章混在一起难以管理
+- 读了很多，却没有结构化的结论
+
+ArticleLens 专门解决这些问题。
+
+---
 
 ## 功能
-- 上传 PDF / Word / TXT 文件分析
-- 粘贴网页 URL 自动抓取
-- 粘贴正文（适合微信文章）
-- 多篇横向对比，生成综合结论
-- 导出文字报告
-- 支持切换 Grok / DeepSeek / Qwen / Kimi
 
-## 本地运行
+- 📄 批量上传 PDF / Word / TXT，最多10个文件同时处理，有进度条
+- 🔗 粘贴网页链接自动抓取正文
+- ✏️ 直接粘贴文字（适合微信文章）
+- 🗂️ 话题管理：不同主题完全隔离，结果自动保存
+- 🔍 多篇横向对比，自动生成共识、矛盾、综合结论
+- 💾 导出分析报告为文本文件
+- 🔄 支持一键切换 Grok / DeepSeek / Qwen / Kimi
+- 🔒 完全本地部署，API Key 不保存、不上传
 
-```bash
-pip install -r requirements.txt
-python app.py
-```
-然后打开 http://localhost:5000
+---
 
-## 部署到 Render（免费，手机也能访问）
+## 适合谁用？
 
-### 第一步：注册 GitHub
-1. 打开 https://github.com
-2. 点击右上角 Sign up，注册账号
+- 需要大量阅读文献的研究者和学生
+- 追踪某个领域动态的从业者
+- 希望独立判断、不被单一信源带偏的读者
+- 觉得"读了很多文章但记不住结论"的人
 
-### 第二步：创建仓库，上传代码
-1. 登录 GitHub 后，点击右上角 "+" → "New repository"
-2. 仓库名填：article-analyzer
-3. 选 Public，点 Create repository
-4. 点页面上的 "uploading an existing file"
-5. 把本工具所有文件（app.py / templates/ / requirements.txt / render.yaml）拖进去
-6. 点 Commit changes
+---
 
-### 第三步：部署到 Render
-1. 打开 https://render.com，点 Get Started for Free
-2. 用 GitHub 账号登录
-3. 点 New → Web Service
-4. 选择你的 article-analyzer 仓库
-5. 配置如下：
-   - Name: article-analyzer（随意）
-   - Environment: Python
-   - Build Command: pip install -r requirements.txt
-   - Start Command: gunicorn app:app --bind 0.0.0.0:$PORT
-   - Plan: Free
-6. 点 Create Web Service
-7. 等待 2-5 分钟部署完成
-8. Render 会给你一个网址，如 https://article-analyzer-xxxx.onrender.com
-9. 这个网址就是你的工具，电脑和手机都能访问
+## 在线体验
 
-## 使用方法
-1. 打开网址
-2. 选择 AI 模型（先选 Grok）
-3. 填入你的 API Key（仅本次会话使用，不保存）
-4. 上传文件 / 粘贴链接 / 粘贴正文
-5. 点「分析这篇」
-6. 重复 4-5 步，分析多篇
-7. 点「综合对比」生成横向分析
-8. 点「导出报告」保存结果
+**直接访问：https://你的Render网址**
+
+填入自己的 API Key 即可使用。推荐先用 DeepSeek，费用极低。
+
+---
+
+## 自己部署（完全免费）
+
+**需要准备**
+- GitHub 账号（免费）
+- Render 账号（免费）
+- 任意一个 API Key：Grok / DeepSeek / Qwen / Kimi
+
+**步骤**
+1. 点右上角 **Fork** 这个仓库
+2. 在 [Render](https://render.com) 新建 Web Service，连接 Fork 后的仓库
+3. Build Command：`pip install -r requirements.txt`
+4. Start Command：`gunicorn app:app --bind 0.0.0.0:$PORT`
+5. 部署完成，打开网址，填入 API Key 开始使用
+
+---
 
 ## API Key 获取
-- Grok: https://console.x.ai
-- DeepSeek: https://platform.deepseek.com
-- Qwen: https://dashscope.aliyun.com
-- Kimi: https://platform.moonshot.cn
+
+| 模型 | 获取地址 | 推荐场景 |
+|---|---|---|
+| DeepSeek | https://platform.deepseek.com | 性价比最高，首选 |
+| Qwen | https://dashscope.aliyun.com | 超长PDF文档 |
+| Kimi | https://platform.moonshot.cn | 中文内容 |
+| Grok | https://console.x.ai | 英文文章 |
+
+---
+
+## 版权声明 / License
+
+Copyright © 2026 Ewayway. All rights reserved.
+
+本项目基于 [MIT License](LICENSE) 开源。
+
+使用本项目代码时，须保留原作者署名及本版权声明。
+欢迎 Fork、学习、改进，但请勿直接商用而不注明来源。
+
+如需商业合作或授权，欢迎通过 GitHub Issues 联系。
+
+---
+
+This project is licensed under the MIT License.  
+Attribution required. Commercial use without credit is discouraged.  
+For commercial licensing, please open a GitHub Issue.
