@@ -1,6 +1,6 @@
 # ArticleLens 文章分析工具
 
-**🔗 在线体验：https://你的Render网址**
+**🔗 在线体验：https://article-analyzer-peway.onrender.com
 
 打开即用，不需要安装任何软件（需自备 AI API Key）。
 
@@ -43,7 +43,7 @@ ArticleLens 专门解决这些问题。
 
 ## 在线体验
 
-**直接访问：https://你的Render网址**
+**直接访问：https://article-analyzer-peway.onrender.com **
 
 填入自己的 API Key 即可使用。推荐先用 DeepSeek，费用极低。
 
